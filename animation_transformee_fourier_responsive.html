@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Animation de la transformée de Fourier</title>
+  <style>
+    :root {
+      --bg: #08111f;
+      --panel: #0f1d33;
+      --panel-2: #132542;
+      --line: #28456f;
+      --text: #ebf2ff;
+      --muted: #aac1e8;
+      --accent: #7fd1ff;
+      --accent-2: #89ffcb;
+      --accent-3: #ffc979;
+      --sum: #ffffff;
+      --bar: #91b8ff;
+      --danger: #ff8f8f;
+      --shadow: 0 10px 28px rgba(0,0,0,.28);
+      --radius: 16px;
+      --gap: clamp(8px, 1.2vw, 14px);
+      --font-sm: clamp(10px, 1.9vw, 13px);
+      --font-md: clamp(12px, 2.2vw, 15px);
+      --font-lg: clamp(16px, 3vw, 24px);
+      --font-xl: clamp(18px, 4vw, 32px);
+      --control-h: clamp(28px, 5vw, 36px);
+    }
+
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: Inter, Arial, sans-serif;
+      background:
+        radial-gradient(circle at top, rgba(127,209,255,.14), transparent 35%),
+        linear-gradient(180deg, #07101c 0%, #08111f 100%);
+      color: var(--text);
+    }
+
+    body {
+      display: flex;
+      align-items: stretch;
+      justify-content: stretch;
+    }
+
+    .app {
+      width: 100vw;
+      height: 100svh;
+      padding: clamp(8px, 1.5vw, 14px);
+      display: grid;
+      grid-template-rows: auto auto 1fr;
+      gap: var(--gap);
+      overflow: hidden;
+    }
+
+    .header {
+      background: rgba(15, 29, 51, .72);
+      border: 1px solid rgba(145,184,255,.14);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: clamp(8px, 1.5vw, 14px);
+      min-height: 0;
+    }
+
+    .title {
+      font-size: var(--font-xl);
+      font-weight: 800;
+      line-height: 1.05;
+      margin: 0 0 4px 0;
+      letter-spacing: -.02em;
+    }
+
+    .subtitle {
+      margin: 0;
+      color: var(--muted);
+      font-size: var(--font-sm);
+      line-height: 1.25;
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: var(--gap);
+      min-height: 0;
+    }
+
+    .card {
+      background: linear-gradient(180deg, rgba(19,37,66,.96), rgba(12,24,42,.96));
+      border: 1px solid rgba(145,184,255,.12);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      min-width: 0;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .control-card {
+      padding: clamp(8px, 1.4vw, 12px);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-height: 0;
+    }
+
+    .control-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .freq-label {
+      font-size: var(--font-md);
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .amp-value {
+      font-size: var(--font-sm);
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      min-height: var(--control-h);
+    }
+
+    .toggle-row label {
+      font-size: var(--font-sm);
+      color: var(--muted);
+    }
+
+    input[type="range"] {
+      width: 100%;
+      margin: 0;
+      accent-color: var(--accent);
+      height: var(--control-h);
+    }
+
+    .switch {
+      position: relative;
+      width: 42px;
+      height: 24px;
+      flex: 0 0 auto;
+    }
+
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+      position: absolute;
+    }
+
+    .slider {
+      position: absolute;
+      inset: 0;
+      background: #2a3b5e;
+      border-radius: 999px;
+      transition: .2s ease;
+      cursor: pointer;
+    }
+
+    .slider::before {
+      content: "";
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      left: 3px;
+      top: 3px;
+      border-radius: 50%;
+      background: white;
+      transition: .2s ease;
+    }
+
+    .switch input:checked + .slider {
+      background: #4a83ff;
+    }
+
+    .switch input:checked + .slider::before {
+      transform: translateX(18px);
+    }
+
+    .actions {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      padding: clamp(8px, 1.4vw, 12px);
+    }
+
+    button {
+      min-height: var(--control-h);
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,.1);
+      background: linear-gradient(180deg, rgba(127,209,255,.18), rgba(127,209,255,.08));
+      color: var(--text);
+      font-size: var(--font-sm);
+      font-weight: 700;
+      cursor: pointer;
+      padding: 0 10px;
+    }
+
+    button:hover {
+      filter: brightness(1.08);
+    }
+
+    .main {
+      min-height: 0;
+      display: grid;
+      grid-template-columns: 1.15fr .85fr;
+      gap: var(--gap);
+      overflow: hidden;
+    }
+
+    .plot-card {
+      display: grid;
+      grid-template-rows: auto 1fr;
+      min-height: 0;
+    }
+
+    .plot-header {
+      padding: clamp(8px, 1.4vw, 12px);
+      border-bottom: 1px solid rgba(145,184,255,.12);
+    }
+
+    .plot-title {
+      margin: 0 0 2px 0;
+      font-size: var(--font-lg);
+      font-weight: 800;
+    }
+
+    .plot-desc {
+      margin: 0;
+      color: var(--muted);
+      font-size: var(--font-sm);
+      line-height: 1.2;
+    }
+
+    .canvas-wrap {
+      position: relative;
+      min-height: 0;
+      width: 100%;
+      height: 100%;
+      padding: clamp(6px, 1vw, 10px);
+    }
+
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      border-radius: 14px;
+      background: linear-gradient(180deg, rgba(7,16,28,.88), rgba(10,19,34,.95));
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      margin-top: 6px;
+      font-size: var(--font-sm);
+      color: var(--muted);
+    }
+
+    .legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex: 0 0 auto;
+    }
+
+    .footer-note {
+      position: absolute;
+      right: 12px;
+      bottom: 10px;
+      font-size: clamp(9px, 1.6vw, 12px);
+      color: rgba(235,242,255,.72);
+      background: rgba(8,17,31,.65);
+      padding: 4px 8px;
+      border-radius: 999px;
+      backdrop-filter: blur(6px);
+    }
+
+    @media (max-width: 900px) {
+      .app {
+        grid-template-rows: auto auto 1fr;
+      }
+      .controls {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .main {
+        grid-template-columns: 1fr;
+        grid-template-rows: 1.05fr .95fr;
+      }
+    }
+
+    @media (max-width: 540px) {
+      .app {
+        padding: 8px;
+        gap: 8px;
+      }
+      .controls {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+      }
+      .actions {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .header, .control-card, .plot-header, .canvas-wrap {
+        padding-left: 8px;
+        padding-right: 8px;
+      }
+      .subtitle, .plot-desc {
+        line-height: 1.15;
+      }
+    }
+
+    @media (max-height: 740px) {
+      .subtitle {
+        display: none;
+      }
+      .legend {
+        margin-top: 4px;
+      }
+      .footer-note {
+        bottom: 6px;
+        right: 8px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <section class="header card">
+      <h1 class="title">Transformée de Fourier</h1>
+      <p class="subtitle">Le signal temporel est la somme de plusieurs sinusoïdes. Le spectre fréquentiel montre quelles fréquences composent ce signal. Modifie les amplitudes et masque ou affiche chaque fréquence.</p>
+    </section>
+
+    <section class="controls">
+      <div class="card control-card">
+        <div class="control-head">
+          <span class="freq-label" style="color: var(--accent);">f₁ = 1 Hz</span>
+          <span class="amp-value">A₁ = <span id="a1Val">1.00</span></span>
+        </div>
+        <input id="a1" type="range" min="0" max="2" step="0.01" value="1.00" />
+        <div class="toggle-row">
+          <label for="show1">Afficher cette fréquence</label>
+          <label class="switch">
+            <input id="show1" type="checkbox" checked />
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <div class="card control-card">
+        <div class="control-head">
+          <span class="freq-label" style="color: var(--accent-2);">f₂ = 3 Hz</span>
+          <span class="amp-value">A₂ = <span id="a2Val">0.70</span></span>
+        </div>
+        <input id="a2" type="range" min="0" max="2" step="0.01" value="0.70" />
+        <div class="toggle-row">
+          <label for="show2">Afficher cette fréquence</label>
+          <label class="switch">
+            <input id="show2" type="checkbox" checked />
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <div class="card control-card">
+        <div class="control-head">
+          <span class="freq-label" style="color: var(--accent-3);">f₃ = 5 Hz</span>
+          <span class="amp-value">A₃ = <span id="a3Val">0.45</span></span>
+        </div>
+        <input id="a3" type="range" min="0" max="2" step="0.01" value="0.45" />
+        <div class="toggle-row">
+          <label for="show3">Afficher cette fréquence</label>
+          <label class="switch">
+            <input id="show3" type="checkbox" checked />
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="actions">
+          <button id="playPause">Pause</button>
+          <button id="resetBtn">Réinitialiser</button>
+          <button id="showAllBtn">Tout afficher</button>
+          <button id="hideAllBtn">Tout masquer</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="main">
+      <article class="card plot-card">
+        <div class="plot-header">
+          <h2 class="plot-title">Signal dans le domaine temporel</h2>
+          <p class="plot-desc">Chaque onde est visible séparément, et la courbe blanche représente leur somme.</p>
+          <div class="legend">
+            <span class="legend-item"><span class="dot" style="background: var(--accent)"></span>f₁</span>
+            <span class="legend-item"><span class="dot" style="background: var(--accent-2)"></span>f₂</span>
+            <span class="legend-item"><span class="dot" style="background: var(--accent-3)"></span>f₃</span>
+            <span class="legend-item"><span class="dot" style="background: var(--sum)"></span>Somme</span>
+          </div>
+        </div>
+        <div class="canvas-wrap">
+          <canvas id="signalCanvas"></canvas>
+          <div class="footer-note">Temps →</div>
+        </div>
+      </article>
+
+      <article class="card plot-card">
+        <div class="plot-header">
+          <h2 class="plot-title">Spectre fréquentiel</h2>
+          <p class="plot-desc">La transformée de Fourier décompose le signal en pics d’amplitude selon la fréquence.</p>
+        </div>
+        <div class="canvas-wrap">
+          <canvas id="spectrumCanvas"></canvas>
+          <div class="footer-note">Fréquence →</div>
+        </div>
+      </article>
+    </section>
+  </div>
+
+  <script>
+    const signalCanvas = document.getElementById('signalCanvas');
+    const spectrumCanvas = document.getElementById('spectrumCanvas');
+    const sctx = signalCanvas.getContext('2d');
+    const fctx = spectrumCanvas.getContext('2d');
+
+    const controls = {
+      a1: document.getElementById('a1'),
+      a2: document.getElementById('a2'),
+      a3: document.getElementById('a3'),
+      show1: document.getElementById('show1'),
+      show2: document.getElementById('show2'),
+      show3: document.getElementById('show3'),
+      a1Val: document.getElementById('a1Val'),
+      a2Val: document.getElementById('a2Val'),
+      a3Val: document.getElementById('a3Val'),
+      playPause: document.getElementById('playPause'),
+      resetBtn: document.getElementById('resetBtn'),
+      showAllBtn: document.getElementById('showAllBtn'),
+      hideAllBtn: document.getElementById('hideAllBtn')
+    };
+
+    const freqs = [1, 3, 5];
+    const colors = ['#7fd1ff', '#89ffcb', '#ffc979'];
+    let playing = true;
+    let phaseTime = 0;
+    let lastTs = performance.now();
+
+    function resizeCanvas(canvas) {
+      const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = Math.max(10, Math.floor(rect.width * dpr));
+      canvas.height = Math.max(10, Math.floor(rect.height * dpr));
+      const ctx = canvas.getContext('2d');
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      return { w: rect.width, h: rect.height };
+    }
+
+    function getState() {
+      const amps = [
+        parseFloat(controls.a1.value),
+        parseFloat(controls.a2.value),
+        parseFloat(controls.a3.value)
+      ];
+      const visible = [
+        controls.show1.checked,
+        controls.show2.checked,
+        controls.show3.checked
+      ];
+      return { amps, visible };
+    }
+
+    function updateReadouts() {
+      controls.a1Val.textContent = parseFloat(controls.a1.value).toFixed(2);
+      controls.a2Val.textContent = parseFloat(controls.a2.value).toFixed(2);
+      controls.a3Val.textContent = parseFloat(controls.a3.value).toFixed(2);
+    }
+
+    function drawAxes(ctx, w, h, left, right, top, bottom, xLabelMarks, yMarks) {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(145,184,255,.18)';
+      ctx.lineWidth = 1;
+      ctx.font = `${Math.max(10, Math.min(12, w * 0.024))}px Inter, Arial, sans-serif`;
+      ctx.fillStyle = 'rgba(235,242,255,.72)';
+
+      for (const y of yMarks) {
+        const py = top + (1 - y.n) * (h - top - bottom);
+        ctx.beginPath();
+        ctx.moveTo(left, py);
+        ctx.lineTo(w - right, py);
+        ctx.stroke();
+        ctx.fillText(y.label, 4, py + 4);
+      }
+
+      for (const x of xLabelMarks) {
+        const px = left + x.n * (w - left - right);
+        ctx.beginPath();
+        ctx.moveTo(px, top);
+        ctx.lineTo(px, h - bottom);
+        ctx.stroke();
+        ctx.fillText(x.label, px - 8, h - 6);
+      }
+
+      ctx.strokeStyle = 'rgba(255,255,255,.36)';
+      ctx.beginPath();
+      ctx.moveTo(left, top);
+      ctx.lineTo(left, h - bottom);
+      ctx.lineTo(w - right, h - bottom);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function drawSignal() {
+      const { w, h } = resizeCanvas(signalCanvas);
+      const { amps, visible } = getState();
+      sctx.clearRect(0, 0, w, h);
+
+      const left = 34;
+      const right = 12;
+      const top = 14;
+      const bottom = 24;
+      const usableW = w - left - right;
+      const usableH = h - top - bottom;
+      const centerY = top + usableH / 2;
+      const scaleY = usableH * 0.22;
+      const samples = Math.max(180, Math.floor(usableW));
+
+      drawAxes(
+        sctx, w, h, left, right, top, bottom,
+        [
+          { n: 0, label: '0' },
+          { n: 0.5, label: 'π' },
+          { n: 1, label: '2π' }
+        ],
+        [
+          { n: 1, label: '+2' },
+          { n: 0.5, label: '0' },
+          { n: 0, label: '-2' }
+        ]
+      );
+
+      const components = freqs.map((f, i) => {
+        const arr = [];
+        for (let k = 0; k <= samples; k++) {
+          const xNorm = k / samples;
+          const t = xNorm * Math.PI * 2;
+          const y = visible[i] ? amps[i] * Math.sin(f * t - phaseTime * f * 0.7) : 0;
+          arr.push({ xNorm, y });
+        }
+        return arr;
+      });
+
+      components.forEach((comp, i) => {
+        if (!visible[i]) return;
+        sctx.beginPath();
+        comp.forEach((p, idx) => {
+          const x = left + p.xNorm * usableW;
+          const y = centerY - p.y * scaleY;
+          if (idx === 0) sctx.moveTo(x, y);
+          else sctx.lineTo(x, y);
+        });
+        sctx.strokeStyle = colors[i];
+        sctx.lineWidth = Math.max(1.2, Math.min(2.2, w * 0.004));
+        sctx.stroke();
+      });
+
+      sctx.beginPath();
+      for (let k = 0; k <= samples; k++) {
+        const xNorm = k / samples;
+        const t = xNorm * Math.PI * 2;
+        let yVal = 0;
+        for (let i = 0; i < freqs.length; i++) {
+          if (visible[i]) yVal += amps[i] * Math.sin(freqs[i] * t - phaseTime * freqs[i] * 0.7);
+        }
+        const x = left + xNorm * usableW;
+        const y = centerY - yVal * scaleY * 0.55;
+        if (k === 0) sctx.moveTo(x, y);
+        else sctx.lineTo(x, y);
+      }
+      sctx.strokeStyle = '#ffffff';
+      sctx.lineWidth = Math.max(1.8, Math.min(3, w * 0.005));
+      sctx.stroke();
+
+      const cursorNorm = ((phaseTime * 0.11) % 1 + 1) % 1;
+      const cursorX = left + cursorNorm * usableW;
+      sctx.strokeStyle = 'rgba(255,255,255,.4)';
+      sctx.setLineDash([5, 5]);
+      sctx.beginPath();
+      sctx.moveTo(cursorX, top);
+      sctx.lineTo(cursorX, h - bottom);
+      sctx.stroke();
+      sctx.setLineDash([]);
+
+      let cursorYVal = 0;
+      const tCursor = cursorNorm * Math.PI * 2;
+      for (let i = 0; i < freqs.length; i++) {
+        if (visible[i]) cursorYVal += amps[i] * Math.sin(freqs[i] * tCursor - phaseTime * freqs[i] * 0.7);
+      }
+      const cursorY = centerY - cursorYVal * scaleY * 0.55;
+      sctx.beginPath();
+      sctx.arc(cursorX, cursorY, Math.max(3.5, Math.min(5.5, w * 0.01)), 0, Math.PI * 2);
+      sctx.fillStyle = '#ffffff';
+      sctx.fill();
+    }
+
+    function drawSpectrum() {
+      const { w, h } = resizeCanvas(spectrumCanvas);
+      const { amps, visible } = getState();
+      fctx.clearRect(0, 0, w, h);
+
+      const left = 38;
+      const right = 14;
+      const top = 14;
+      const bottom = 28;
+      const usableW = w - left - right;
+      const usableH = h - top - bottom;
+      const maxAmp = 2;
+
+      drawAxes(
+        fctx, w, h, left, right, top, bottom,
+        [
+          { n: 0.12, label: '1' },
+          { n: 0.5, label: '3' },
+          { n: 0.88, label: '5' }
+        ],
+        [
+          { n: 1, label: '2' },
+          { n: 0.5, label: '1' },
+          { n: 0, label: '0' }
+        ]
+      );
+
+      const positions = [0.12, 0.5, 0.88];
+      const barW = Math.min(usableW * 0.16, 46);
+      const pulse = 0.92 + 0.08 * Math.sin(phaseTime * 3.2);
+
+      positions.forEach((n, i) => {
+        const x = left + n * usableW - barW / 2;
+        const amp = visible[i] ? amps[i] : 0;
+        const barH = (amp / maxAmp) * usableH * pulse;
+        const y = top + usableH - barH;
+
+        fctx.fillStyle = 'rgba(255,255,255,.06)';
+        fctx.fillRect(x, top, barW, usableH);
+
+        const grad = fctx.createLinearGradient(0, y, 0, top + usableH);
+        grad.addColorStop(0, colors[i]);
+        grad.addColorStop(1, 'rgba(255,255,255,.10)');
+        fctx.fillStyle = grad;
+        fctx.fillRect(x, y, barW, barH);
+
+        fctx.strokeStyle = colors[i];
+        fctx.lineWidth = 1.5;
+        fctx.strokeRect(x, y, barW, barH);
+
+        fctx.fillStyle = 'rgba(235,242,255,.92)';
+        fctx.font = `${Math.max(10, Math.min(13, w * 0.026))}px Inter, Arial, sans-serif`;
+        fctx.textAlign = 'center';
+        fctx.fillText(amp.toFixed(2), x + barW / 2, Math.max(14, y - 6));
+      });
+
+      fctx.textAlign = 'left';
+      fctx.fillStyle = 'rgba(170,193,232,.86)';
+      fctx.font = `${Math.max(10, Math.min(12, w * 0.024))}px Inter, Arial, sans-serif`;
+      fctx.fillText('Amplitude', 4, 12);
+    }
+
+    function render() {
+      drawSignal();
+      drawSpectrum();
+    }
+
+    function animate(ts) {
+      const dt = Math.min(0.05, (ts - lastTs) / 1000);
+      lastTs = ts;
+      if (playing) phaseTime += dt;
+      render();
+      requestAnimationFrame(animate);
+    }
+
+    function resetDefaults() {
+      controls.a1.value = '1.00';
+      controls.a2.value = '0.70';
+      controls.a3.value = '0.45';
+      controls.show1.checked = true;
+      controls.show2.checked = true;
+      controls.show3.checked = true;
+      phaseTime = 0;
+      updateReadouts();
+      render();
+    }
+
+    [controls.a1, controls.a2, controls.a3].forEach(el => {
+      el.addEventListener('input', () => {
+        updateReadouts();
+        render();
+      });
+    });
+
+    [controls.show1, controls.show2, controls.show3].forEach(el => {
+      el.addEventListener('change', render);
+    });
+
+    controls.playPause.addEventListener('click', () => {
+      playing = !playing;
+      controls.playPause.textContent = playing ? 'Pause' : 'Lecture';
+    });
+
+    controls.resetBtn.addEventListener('click', resetDefaults);
+
+    controls.showAllBtn.addEventListener('click', () => {
+      controls.show1.checked = true;
+      controls.show2.checked = true;
+      controls.show3.checked = true;
+      render();
+    });
+
+    controls.hideAllBtn.addEventListener('click', () => {
+      controls.show1.checked = false;
+      controls.show2.checked = false;
+      controls.show3.checked = false;
+      render();
+    });
+
+    window.addEventListener('resize', render, { passive: true });
+
+    updateReadouts();
+    render();
+    requestAnimationFrame(animate);
+  </script>
+</body>
+</html>
