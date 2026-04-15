@@ -1,401 +1,337 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Animation - Transformée de Fourier</title>
-  <style>
-    :root {
-      --bg1: #0f172a;
-      --bg2: #111827;
-      --card: rgba(255,255,255,0.08);
-      --text: #f8fafc;
-      --muted: #cbd5e1;
-      --line: rgba(255,255,255,0.12);
-      --accent: #93c5fd;
-      --accent2: #c4b5fd;
-      --accent3: #86efac;
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      font-family: Inter, system-ui, Arial, sans-serif;
-      color: var(--text);
-      background: radial-gradient(circle at top left, #1e293b, var(--bg1) 45%, var(--bg2));
-    }
-    .wrap {
-      max-width: 1280px;
-      margin: 0 auto;
-      padding: 24px;
-    }
-    h1 {
-      font-size: clamp(30px, 5vw, 52px);
-      margin: 0 0 10px;
-      font-weight: 700;
-    }
-    .lead {
-      max-width: 920px;
-      color: var(--muted);
-      line-height: 1.6;
-      font-size: 18px;
-      margin-bottom: 24px;
-    }
-    .grid {
-      display: grid;
-      grid-template-columns: 2fr 1fr;
-      gap: 20px;
-    }
-    .card {
-      background: var(--card);
-      border: 1px solid rgba(255,255,255,0.08);
-      border-radius: 24px;
-      backdrop-filter: blur(12px);
-      box-shadow: 0 16px 40px rgba(0,0,0,0.25);
-      padding: 18px;
-    }
-    .card h2 {
-      margin: 0 0 14px;
-      font-size: 22px;
-    }
-    .plots {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 14px;
-    }
-    svg {
-      width: 100%;
-      height: auto;
-      display: block;
-      border-radius: 18px;
-      background: rgba(255,255,255,0.05);
-    }
-    .controls {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 16px;
-      margin-top: 18px;
-    }
-    .control label {
-      display: block;
-      margin-bottom: 8px;
-      font-size: 14px;
-      color: var(--muted);
-    }
-    input[type="range"] {
-      width: 100%;
-    }
-    .value {
-      margin-top: 6px;
-      font-size: 13px;
-      color: var(--muted);
-    }
-    .buttons {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      margin-top: 18px;
-    }
-    button {
-      border: 0;
-      border-radius: 16px;
-      padding: 12px 16px;
-      font-size: 15px;
-      cursor: pointer;
-      background: white;
-      color: #0f172a;
-      font-weight: 600;
-    }
-    button.secondary {
-      background: rgba(255,255,255,0.08);
-      color: var(--text);
-      border: 1px solid rgba(255,255,255,0.1);
-    }
-    .side {
-      display: grid;
-      gap: 20px;
-    }
-    .chips {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      margin-top: 10px;
-    }
-    .chip {
-      padding: 8px 12px;
-      border-radius: 999px;
-      background: rgba(255,255,255,0.1);
-      font-size: 13px;
-    }
-    .small {
-      color: var(--muted);
-      line-height: 1.7;
-      font-size: 15px;
-    }
-    .steps {
-      display: grid;
-      gap: 10px;
-      margin-top: 6px;
-    }
-    .step {
-      padding: 12px 14px;
-      border-radius: 16px;
-      background: rgba(255,255,255,0.05);
-      line-height: 1.55;
-      color: var(--muted);
-      font-size: 14px;
-    }
-    @media (max-width: 980px) {
-      .grid, .plots { grid-template-columns: 1fr; }
-      .controls { grid-template-columns: 1fr; }
-    }
-  </style>
-</head>
-<body>
-  <div class="wrap">
-    <h1>Transformée de Fourier</h1>
-    <p class="lead">
-      Cette version HTML autonome montre comment un signal complexe peut être décomposé en fréquences simples.
-      À gauche, on observe le signal dans le domaine temporel. À droite, la transformée de Fourier met en évidence les fréquences qui le composent.
-    </p>
+import React, { useEffect, useMemo, useRef, useState } from "react";
 
-    <div class="grid">
-      <section class="card">
-        <h2>Signal et spectre</h2>
-        <div class="plots">
-          <svg id="timePlot" viewBox="0 0 520 240" aria-label="Signal temporel"></svg>
-          <svg id="freqPlot" viewBox="0 0 520 240" aria-label="Spectre fréquentiel"></svg>
-        </div>
+export default function FourierAnimationResponsive() {
+  const [running, setRunning] = useState(true);
+  const [speed, setSpeed] = useState(1);
+  const [showSingleFreq, setShowSingleFreq] = useState(false);
+  const [selectedFreq, setSelectedFreq] = useState(3);
+  const [phase, setPhase] = useState(0);
+  const rafRef = useRef<number | null>(null);
+  const lastRef = useRef<number | null>(null);
 
-        <div class="controls">
-          <div class="control">
-            <label for="a1">Amplitude 1 Hz</label>
-            <input id="a1" type="range" min="0" max="2" step="0.05" value="1.2">
-            <div class="value" id="v1">1.20</div>
-          </div>
-          <div class="control">
-            <label for="a3">Amplitude 3 Hz</label>
-            <input id="a3" type="range" min="0" max="2" step="0.05" value="0.8">
-            <div class="value" id="v3">0.80</div>
-          </div>
-          <div class="control">
-            <label for="a5">Amplitude 5 Hz</label>
-            <input id="a5" type="range" min="0" max="2" step="0.05" value="0.5">
-            <div class="value" id="v5">0.50</div>
-          </div>
-        </div>
+  const components = useMemo(
+    () => [
+      { f: 1, a: 1.0, color: "#60a5fa", label: "1 Hz" },
+      { f: 3, a: 0.65, color: "#a78bfa", label: "3 Hz" },
+      { f: 5, a: 0.35, color: "#34d399", label: "5 Hz" },
+    ],
+    []
+  );
 
-        <div class="buttons">
-          <button id="toggleBtn">Pause</button>
-          <button id="resetBtn" class="secondary">Réinitialiser</button>
-        </div>
-      </section>
-
-      <aside class="side">
-        <section class="card">
-          <h2>Somme de vecteurs tournants</h2>
-          <svg id="vectorPlot" viewBox="0 0 220 220" aria-label="Vecteurs tournants"></svg>
-          <p class="small">
-            Chaque sinusoïde peut être représentée par un vecteur tournant. Leur somme reconstruit le signal observé dans le temps.
-          </p>
-        </section>
-
-        <section class="card">
-          <h2>Idée clé</h2>
-          <div class="steps">
-            <div class="step"><strong>Domaine temporel</strong> : on regarde comment le signal varie au cours du temps.</div>
-            <div class="step"><strong>Domaine fréquentiel</strong> : on mesure combien chaque fréquence contribue au signal.</div>
-            <div class="step"><strong>Transformée de Fourier</strong> : elle convertit un signal complexe en fréquences simples et mesurables.</div>
-          </div>
-          <div class="chips" id="dominantChips"></div>
-        </section>
-      </aside>
-    </div>
-  </div>
-
-  <script>
-    const WIDTH = 520;
-    const HEIGHT = 240;
-    const N = 256;
-    const timeSvg = document.getElementById('timePlot');
-    const freqSvg = document.getElementById('freqPlot');
-    const vectorSvg = document.getElementById('vectorPlot');
-    const dominantChips = document.getElementById('dominantChips');
-    const a1 = document.getElementById('a1');
-    const a3 = document.getElementById('a3');
-    const a5 = document.getElementById('a5');
-    const v1 = document.getElementById('v1');
-    const v3 = document.getElementById('v3');
-    const v5 = document.getElementById('v5');
-    const toggleBtn = document.getElementById('toggleBtn');
-    const resetBtn = document.getElementById('resetBtn');
-
-    let playing = true;
-    let phase = 0;
-    let lastTime = performance.now();
-
-    function linspace(start, end, n) {
-      const arr = [];
-      for (let i = 0; i < n; i++) arr.push(start + (i * (end - start)) / (n - 1));
-      return arr;
-    }
-
-    const t = linspace(0, 1, N);
-
-    function amps() {
-      return [parseFloat(a1.value), parseFloat(a3.value), parseFloat(a5.value)];
-    }
-
-    function signalValue(t, A, p) {
-      return A[0] * Math.sin(2 * Math.PI * 1 * t + p)
-           + A[1] * Math.sin(2 * Math.PI * 3 * t + p * 0.6)
-           + A[2] * Math.sin(2 * Math.PI * 5 * t + p * 1.2);
-    }
-
-    function dft(samples) {
-      const n = samples.length;
-      const mags = [];
-      for (let k = 0; k < n / 2; k++) {
-        let re = 0;
-        let im = 0;
-        for (let i = 0; i < n; i++) {
-          const angle = (-2 * Math.PI * k * i) / n;
-          re += samples[i] * Math.cos(angle);
-          im += samples[i] * Math.sin(angle);
-        }
-        mags.push(Math.sqrt(re * re + im * im) / n);
+  useEffect(() => {
+    const loop = (ts: number) => {
+      if (lastRef.current == null) lastRef.current = ts;
+      const dt = (ts - lastRef.current) / 1000;
+      lastRef.current = ts;
+      if (running) {
+        setPhase((p) => (p + dt * speed * 1.4) % (Math.PI * 2));
       }
-      return mags;
+      rafRef.current = requestAnimationFrame(loop);
+    };
+
+    rafRef.current = requestAnimationFrame(loop);
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  }, [running, speed]);
+
+  const visibleComponents = showSingleFreq
+    ? components.filter((c) => c.f === selectedFreq)
+    : components;
+
+  const signalPoints = useMemo(() => {
+    const n = 180;
+    const pts = [];
+    for (let i = 0; i < n; i++) {
+      const t = (i / (n - 1)) * Math.PI * 2;
+      const y = visibleComponents.reduce(
+        (sum, c) => sum + c.a * Math.sin(c.f * t + phase),
+        0
+      );
+      pts.push({ t, y });
     }
+    return pts;
+  }, [visibleComponents, phase]);
 
-    function pathFromPoints(points, yMin, yMax) {
-      const sx = WIDTH / (points.length - 1);
-      const sy = HEIGHT / (yMax - yMin || 1);
-      return points.map((p, i) => {
-        const x = i * sx;
-        const y = HEIGHT - (p - yMin) * sy;
-        return `${i === 0 ? 'M' : 'L'} ${x.toFixed(2)} ${y.toFixed(2)}`;
-      }).join(' ');
-    }
+  const currentSample = visibleComponents.reduce(
+    (sum, c) => sum + c.a * Math.sin(c.f * 0 + phase),
+    0
+  );
 
-    function drawTime(samples) {
-      const yMin = -3.5, yMax = 3.5;
-      const path = pathFromPoints(samples, yMin, yMax);
-      const markerIndex = Math.floor(((phase % (2 * Math.PI)) / (2 * Math.PI)) * (samples.length - 1));
-      const markerX = (markerIndex / (samples.length - 1)) * WIDTH;
-      const markerY = HEIGHT - ((samples[markerIndex] - yMin) / (yMax - yMin)) * HEIGHT;
+  const spectrumHeights = components.map((c) => {
+    const isActive = visibleComponents.some((v) => v.f === c.f);
+    return {
+      ...c,
+      active: isActive,
+      height: `${Math.round(c.a * 80)}%`,
+    };
+  });
 
-      timeSvg.innerHTML = `
-        <line x1="0" y1="120" x2="520" y2="120" stroke="white" opacity="0.16" />
-        <line x1="104" y1="0" x2="104" y2="240" stroke="white" opacity="0.08" />
-        <line x1="208" y1="0" x2="208" y2="240" stroke="white" opacity="0.08" />
-        <line x1="312" y1="0" x2="312" y2="240" stroke="white" opacity="0.08" />
-        <line x1="416" y1="0" x2="416" y2="240" stroke="white" opacity="0.08" />
-        <path d="${path}" fill="none" stroke="#93c5fd" stroke-width="3" />
-        <circle cx="${markerX}" cy="${markerY}" r="6" fill="#ffffff" />
-        <text x="12" y="22" fill="white" opacity="0.85" font-size="15">Signal temporel x(t)</text>
-        <text x="442" y="228" fill="white" opacity="0.55" font-size="13">temps</text>
-      `;
-    }
+  const circleSize = 220;
+  const center = circleSize / 2;
+  const scale = 54;
 
-    function drawFreq(mags) {
-      const shown = mags.slice(0, 16);
-      const maxMag = Math.max(...shown, 0.001);
-      const barWidth = WIDTH / shown.length;
-      let bars = '';
-      shown.forEach((m, i) => {
-        const h = (m / maxMag) * (HEIGHT - 50);
-        const x = i * barWidth;
-        const y = HEIGHT - 24 - h;
-        const color = (i === 1) ? '#93c5fd' : (i === 3) ? '#c4b5fd' : (i === 5) ? '#86efac' : 'rgba(255,255,255,0.25)';
-        bars += `<rect x="${x + 2}" y="${y}" width="${Math.max(1, barWidth - 4)}" height="${h}" rx="4" fill="${color}" />`;
-        if ((i === 1 || i === 3 || i === 5) && m > 0.02) {
-          bars += `<text x="${x + barWidth / 2}" y="${y - 6}" text-anchor="middle" font-size="12" fill="white" opacity="0.85">${i} Hz</text>`;
-        }
-      });
-      freqSvg.innerHTML = `
-        <line x1="0" y1="216" x2="520" y2="216" stroke="white" opacity="0.16" />
-        ${bars}
-        <text x="12" y="22" fill="white" opacity="0.85" font-size="15">Spectre |X(f)|</text>
-        <text x="410" y="232" fill="white" opacity="0.55" font-size="13">fréquence</text>
-      `;
-    }
+  let chainX = center;
+  let chainY = center;
+  const phasorSegments = visibleComponents.map((c) => {
+    const x1 = chainX;
+    const y1 = chainY;
+    const angle = c.f * phase - Math.PI / 2;
+    const dx = Math.cos(angle) * c.a * scale;
+    const dy = Math.sin(angle) * c.a * scale;
+    chainX += dx;
+    chainY += dy;
+    return {
+      ...c,
+      x1,
+      y1,
+      x2: chainX,
+      y2: chainY,
+    };
+  });
 
-    function drawVectors(A) {
-      const center = 110;
-      const scale = 24;
-      const vectors = [
-        { f: 1, a: A[0], p: phase },
-        { f: 3, a: A[1], p: phase * 0.6 },
-        { f: 5, a: A[2], p: phase * 1.2 }
-      ];
-      let x = center;
-      let y = center;
-      let lines = `
-        <circle cx="110" cy="110" r="2" fill="white" opacity="0.5" />
-        <circle cx="110" cy="110" r="68" fill="none" stroke="white" opacity="0.08" />
-        <circle cx="110" cy="110" r="42" fill="none" stroke="white" opacity="0.08" />
-        <text x="12" y="20" fill="white" opacity="0.85" font-size="14">Vecteurs tournants</text>
-      `;
-      const colors = ['#93c5fd', '#c4b5fd', '#86efac'];
-      vectors.forEach((v, idx) => {
-        const x2 = x + Math.cos(v.f * v.p - Math.PI / 2) * v.a * scale;
-        const y2 = y + Math.sin(v.f * v.p - Math.PI / 2) * v.a * scale;
-        lines += `<line x1="${x}" y1="${y}" x2="${x2}" y2="${y2}" stroke="${colors[idx]}" stroke-width="3" />`;
-        lines += `<circle cx="${x2}" cy="${y2}" r="4" fill="${colors[idx]}" />`;
-        x = x2; y = y2;
-      });
-      lines += `<line x1="${x}" y1="${y}" x2="210" y2="${y}" stroke="white" opacity="0.28" stroke-dasharray="5 4" />`;
-      vectorSvg.innerHTML = lines;
-    }
+  const waveformPath = (() => {
+    const w = 560;
+    const h = 180;
+    const midY = h / 2;
+    const maxAmp = 2.2;
+    return signalPoints
+      .map((p, i) => {
+        const x = (i / (signalPoints.length - 1)) * w;
+        const y = midY - (p.y / maxAmp) * (h * 0.34);
+        return `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
+      })
+      .join(" ");
+  })();
 
-    function updateDominants(mags) {
-      const peaks = mags
-        .map((m, i) => ({ f: i, m }))
-        .sort((a, b) => b.m - a.m)
-        .slice(0, 3)
-        .sort((a, b) => a.f - b.f);
-      dominantChips.innerHTML = peaks.map(p => `<span class="chip">${p.f} Hz • ${p.m.toFixed(2)}</span>`).join('');
-    }
+  const indicatorY = 90 - (currentSample / 2.2) * 60;
 
-    function render() {
-      const A = amps();
-      v1.textContent = A[0].toFixed(2);
-      v3.textContent = A[1].toFixed(2);
-      v5.textContent = A[2].toFixed(2);
+  return (
+    <div className="h-[100svh] w-full overflow-hidden bg-slate-950 text-white">
+      <div className="mx-auto flex h-full max-w-6xl flex-col px-3 py-3 sm:px-4 sm:py-4">
+        <div className="mb-2 shrink-0 rounded-3xl border border-white/10 bg-white/5 px-3 py-2 backdrop-blur">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <h1 className="truncate text-sm font-semibold tracking-tight sm:text-lg">
+                Transformée de Fourier · animation intuitive
+              </h1>
+              <p className="line-clamp-2 text-[10px] text-slate-300 sm:text-xs">
+                Le signal complexe se décompose en fréquences simples. Les vecteurs tournants
+                reconstruisent la courbe, et le spectre montre l&apos;importance de chaque fréquence.
+              </p>
+            </div>
 
-      const samples = t.map(tt => signalValue(tt, A, phase));
-      const mags = dft(samples);
-      drawTime(samples);
-      drawFreq(mags);
-      drawVectors(A);
-      updateDominants(mags);
-    }
+            <button
+              onClick={() => setRunning((v) => !v)}
+              className="shrink-0 rounded-2xl border border-white/15 bg-white/10 px-3 py-2 text-[11px] font-medium transition hover:bg-white/15 sm:text-sm"
+            >
+              {running ? "Pause" : "Lecture"}
+            </button>
+          </div>
 
-    function animate(now) {
-      const dt = (now - lastTime) / 1000;
-      lastTime = now;
-      if (playing) phase += dt * 1.5;
-      render();
-      requestAnimationFrame(animate);
-    }
+          <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <div className="rounded-2xl bg-black/20 px-2 py-2">
+              <div className="text-[9px] uppercase tracking-[0.18em] text-slate-400">Mode</div>
+              <button
+                onClick={() => setShowSingleFreq((v) => !v)}
+                className="mt-1 w-full rounded-xl border border-white/10 bg-white/10 px-2 py-2 text-[10px] sm:text-xs"
+              >
+                {showSingleFreq ? "Une fréquence" : "Signal complet"}
+              </button>
+            </div>
 
-    [a1, a3, a5].forEach(el => el.addEventListener('input', render));
-    toggleBtn.addEventListener('click', () => {
-      playing = !playing;
-      toggleBtn.textContent = playing ? 'Pause' : 'Lecture';
-    });
-    resetBtn.addEventListener('click', () => {
-      a1.value = 1.2;
-      a3.value = 0.8;
-      a5.value = 0.5;
-      phase = 0;
-      playing = true;
-      toggleBtn.textContent = 'Pause';
-      render();
-    });
+            <div className="rounded-2xl bg-black/20 px-2 py-2">
+              <div className="text-[9px] uppercase tracking-[0.18em] text-slate-400">Vitesse</div>
+              <input
+                type="range"
+                min="0.4"
+                max="2"
+                step="0.1"
+                value={speed}
+                onChange={(e) => setSpeed(Number(e.target.value))}
+                className="mt-2 w-full"
+              />
+              <div className="text-[10px] text-slate-300 sm:text-xs">×{speed.toFixed(1)}</div>
+            </div>
 
-    render();
-    requestAnimationFrame(animate);
-  </script>
-</body>
-</html>
+            <div className="rounded-2xl bg-black/20 px-2 py-2 col-span-2 sm:col-span-2">
+              <div className="text-[9px] uppercase tracking-[0.18em] text-slate-400">
+                Fréquence isolée
+              </div>
+              <div className="mt-1 flex gap-1">
+                {components.map((c) => (
+                  <button
+                    key={c.f}
+                    onClick={() => {
+                      setSelectedFreq(c.f);
+                      setShowSingleFreq(true);
+                    }}
+                    className={`flex-1 rounded-xl px-2 py-2 text-[10px] font-medium sm:text-xs ${
+                      selectedFreq === c.f && showSingleFreq
+                        ? "bg-white text-slate-900"
+                        : "bg-white/10 text-white"
+                    }`}
+                  >
+                    {c.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid min-h-0 flex-1 gap-2 md:grid-cols-[1.05fr_0.95fr]">
+          <section className="grid min-h-0 grid-rows-[1fr_auto] gap-2">
+            <div className="min-h-0 rounded-3xl border border-white/10 bg-white/5 p-2 backdrop-blur sm:p-3">
+              <div className="mb-1 flex items-center justify-between">
+                <div>
+                  <h2 className="text-xs font-semibold sm:text-sm">1. Vecteurs tournants</h2>
+                  <p className="text-[10px] text-slate-300 sm:text-xs">
+                    Chaque fréquence est représentée par un vecteur en rotation.
+                  </p>
+                </div>
+                <div className="rounded-full bg-white/10 px-2 py-1 text-[10px] text-slate-300 sm:text-xs">
+                  Somme des composantes
+                </div>
+              </div>
+
+              <div className="flex h-[calc(100%-2rem)] items-center justify-center">
+                <svg viewBox={`0 0 ${circleSize} ${circleSize}`} className="h-full max-h-full w-full">
+                  <circle
+                    cx={center}
+                    cy={center}
+                    r={scale + 2}
+                    fill="none"
+                    stroke="rgba(255,255,255,0.10)"
+                    strokeWidth="1"
+                  />
+                  <circle
+                    cx={center}
+                    cy={center}
+                    r={scale * 1.65}
+                    fill="none"
+                    stroke="rgba(255,255,255,0.06)"
+                    strokeWidth="1"
+                  />
+
+                  {phasorSegments.map((seg, idx) => (
+                    <g key={idx}>
+                      <line
+                        x1={seg.x1}
+                        y1={seg.y1}
+                        x2={seg.x2}
+                        y2={seg.y2}
+                        stroke={seg.color}
+                        strokeWidth="4"
+                        strokeLinecap="round"
+                      />
+                      <circle cx={seg.x2} cy={seg.y2} r="4.5" fill={seg.color} />
+                    </g>
+                  ))}
+
+                  <line
+                    x1={chainX}
+                    y1={chainY}
+                    x2={circleSize - 8}
+                    y2={chainY}
+                    stroke="rgba(255,255,255,0.18)"
+                    strokeDasharray="4 4"
+                  />
+
+                  <circle cx={chainX} cy={chainY} r="5" fill="#f8fafc" />
+                </svg>
+              </div>
+            </div>
+
+            <div className="rounded-3xl border border-white/10 bg-white/5 p-2 backdrop-blur sm:p-3">
+              <div className="mb-2 flex items-center justify-between">
+                <div>
+                  <h2 className="text-xs font-semibold sm:text-sm">2. Spectre fréquentiel</h2>
+                  <p className="text-[10px] text-slate-300 sm:text-xs">
+                    Plus la barre est haute, plus la fréquence contribue au signal.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex h-24 items-end gap-2 rounded-2xl bg-black/20 px-2 py-2 sm:h-28">
+                {spectrumHeights.map((bar) => (
+                  <div key={bar.f} className="flex flex-1 flex-col items-center justify-end gap-1">
+                    <div
+                      className="w-full rounded-t-2xl transition-all duration-300"
+                      style={{
+                        height: bar.height,
+                        background: bar.active
+                          ? `linear-gradient(to top, ${bar.color}, rgba(255,255,255,0.95))`
+                          : "linear-gradient(to top, rgba(148,163,184,0.35), rgba(255,255,255,0.25))",
+                        opacity: bar.active ? 1 : 0.45,
+                      }}
+                    />
+                    <div className="text-[10px] text-slate-300 sm:text-xs">{bar.label}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          <section className="min-h-0 rounded-3xl border border-white/10 bg-white/5 p-2 backdrop-blur sm:p-3">
+            <div className="mb-1 flex items-center justify-between">
+              <div>
+                <h2 className="text-xs font-semibold sm:text-sm">3. Signal reconstruit</h2>
+                <p className="text-[10px] text-slate-300 sm:text-xs">
+                  La somme des fréquences donne la forme finale du signal.
+                </p>
+              </div>
+              <div className="rounded-full bg-white/10 px-2 py-1 text-[10px] text-slate-300 sm:text-xs">
+                Domaine temporel
+              </div>
+            </div>
+
+            <div className="grid h-[calc(100%-1.75rem)] min-h-0 grid-rows-[1fr_auto] gap-2">
+              <div className="min-h-0 rounded-2xl bg-black/20 p-2">
+                <svg viewBox="0 0 560 180" className="h-full w-full">
+                  <line x1="0" y1="90" x2="560" y2="90" stroke="rgba(255,255,255,0.12)" />
+                  <path d={waveformPath} fill="none" stroke="#f8fafc" strokeWidth="3" strokeLinecap="round" />
+                  <line x1="0" y1={indicatorY} x2="560" y2={indicatorY} stroke="rgba(96,165,250,0.22)" strokeDasharray="4 4" />
+                  <circle cx="20" cy={indicatorY} r="6" fill="#60a5fa" />
+                </svg>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                {components.map((c) => {
+                  const active = visibleComponents.some((v) => v.f === c.f);
+                  return (
+                    <div
+                      key={c.f}
+                      className="rounded-2xl border border-white/10 px-2 py-2"
+                      style={{
+                        background: active
+                          ? `linear-gradient(135deg, ${c.color}22, rgba(255,255,255,0.04))`
+                          : "rgba(255,255,255,0.03)",
+                      }}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span
+                          className="h-2.5 w-2.5 rounded-full"
+                          style={{ background: c.color, opacity: active ? 1 : 0.4 }}
+                        />
+                        <div className="text-[10px] font-medium sm:text-xs">{c.label}</div>
+                      </div>
+                      <div className="mt-1 text-[9px] text-slate-300 sm:text-[11px]">
+                        Amplitude {c.a.toFixed(2)}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <div className="mt-2 shrink-0 rounded-3xl border border-white/10 bg-white/5 px-3 py-2 text-[10px] text-slate-300 backdrop-blur sm:text-xs">
+          Lecture visuelle: à gauche, les composantes tournent. En bas, le spectre montre quelles fréquences sont présentes.
+          À droite, leur somme reconstruit le signal dans le temps. C&apos;est l&apos;idée centrale de la transformée de Fourier.
+        </div>
+      </div>
+    </div>
+  );
+}
